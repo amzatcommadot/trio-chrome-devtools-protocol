@@ -15,13 +15,10 @@ classifiers = [
 
 [tool.poetry.dependencies]
 python = "^3.7"
-chrome-devtools-protocol = "^0.4.0"
+#chrome-devtools-protocol = "^0.4.0"
+https://github.com/amzatoune/chrome-devtools-protocol
 trio = "^0.13.0"
 trio_websocket = "^0.8.0"
-[[tool.poetry.source]]
-name = "chrome-devtools-protocol"
-url = "https://github.com/amzatoune/chrome-devtools-protocol.git"
-default = true
 [tool.poetry.dev-dependencies]
 mypy = "^0.770"
 pytest = "^5.4.1"
