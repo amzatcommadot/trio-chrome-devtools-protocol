@@ -29,13 +29,14 @@ class BrowserError(Exception):
     ''' This exception is raised when the browser's response to a command
     indicates that an error occurred. '''
     def __init__(self, obj):
-        self.code = obj['code']
-        self.message = obj['message']
+        self.code = obj.get('code', -1)
+        self.message = obj.get('message', 'Unknown error')
         self.detail = obj.get('data')
+        self.text = obj.get('text', '')
 
     def __str__(self):
-        return 'BrowserError<code={} message={}> {}'.format(self.code,
-            self.message, self.detail)
+        return 'BrowserError<code={} message={}> {}, text={}'.format(self.code,
+            self.message, self.detail, self.text)
 
 
 class CdpConnectionClosed(WsConnectionClosed):
@@ -105,7 +106,7 @@ class CdpBase:
             raise response
         return response
 
-    def listen(self, *event_types, buffer_size=10):
+    def listen(self, *event_types, buffer_size=1000):
         ''' Return an async iterator that iterates over events matching the
         indicated types. '''
         sender, receiver = trio.open_memory_channel(buffer_size)
@@ -114,7 +115,7 @@ class CdpBase:
         return receiver
 
     @asynccontextmanager
-    async def wait_for(self, event_type: typing.Type[T], buffer_size=10) -> \
+    async def wait_for(self, event_type: typing.Type[T], buffer_size=1000) -> \
             typing.AsyncGenerator[CmEventProxy, None]:
         '''
         Wait for an event of the given type and return it.
@@ -132,6 +133,7 @@ class CdpBase:
         proxy.value = event
 
     def _handle_data(self, data):
+        # print(f"_handle_data: {data}")
         '''
         Handle incoming WebSocket data.
 
@@ -143,6 +145,7 @@ class CdpBase:
             self._handle_event(data)
 
     def _handle_cmd_response(self, data):
+        # print(f"_handle_cmd_response: {data}")
         '''
         Handle a response to a command. This will set an event flag that will
         return control to the task that called the command.
@@ -156,11 +159,12 @@ class CdpBase:
             logger.warning('Got a message with a command ID that does'
                 ' not exist: {}'.format(data))
             return
-        if 'error' in data:
+        if 'error' in data or ('result' in data and data.get('result',{}).get('exceptionDetails')):
             # If the server reported an error, convert it to an exception and do
             # not process the response any further.
+            data['error'] = data['error'] if 'error' in data else data['result']['exceptionDetails']
             self.inflight_result[cmd_id] = BrowserError(data['error'])
-        else:
+        elif 'result' in data:
             # Otherwise, continue the generator to parse the JSON result
             # into a CDP object.
             try:
@@ -173,6 +177,7 @@ class CdpBase:
         event.set()
 
     def _handle_event(self, data):
+        # print(f"_handle_event: {data}")
         '''
         Handle an event.
 
